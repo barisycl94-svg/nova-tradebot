@@ -10,6 +10,52 @@ import { realMarketDataService } from '../RealMarketDataProvider.js';
 export class TitanMarketEngine {
 
     /**
+     * BTC Analizi - Fiyat ve değişim
+     */
+    static async analyzeBTC() {
+        try {
+            const quote = realMarketDataService.getQuote('BTCUSDT');
+            if (!quote) {
+                return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+            }
+            return {
+                price: quote.price,
+                change24h: quote.priceChangePercent || 0,
+                trend: (quote.priceChangePercent || 0) > 0 ? 'UP' : 'DOWN'
+            };
+        } catch (e) {
+            return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+        }
+    }
+
+    /**
+     * ETH Analizi - Fiyat ve değişim
+     */
+    static async analyzeETH() {
+        try {
+            const quote = realMarketDataService.getQuote('ETHUSDT');
+            if (!quote) {
+                return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+            }
+            return {
+                price: quote.price,
+                change24h: quote.priceChangePercent || 0,
+                trend: (quote.priceChangePercent || 0) > 0 ? 'UP' : 'DOWN'
+            };
+        } catch (e) {
+            return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+        }
+    }
+
+    /**
+     * Genel piyasa skoru (basit versiyon)
+     */
+    static getOverallScore() {
+        const momentum = this.analyzeMarketMomentum();
+        return momentum.score;
+    }
+
+    /**
      * BTC Dominance analizi (BTC'nin toplam piyasadaki ağırlığı)
      * High dominance = Altcoinler zayıf
      * Low dominance = Altseason potansiyeli

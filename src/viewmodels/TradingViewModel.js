@@ -780,8 +780,10 @@ class TradingViewModel {
 
         // 🧠 ÖĞRENME: Kapanan işlemi öğrenme motoruna bildir
         try {
-            learningEngine.evaluateClosedTrade(trade);
-            console.log(`🧠 İşlem öğrenildi: ${trade.symbol} (${profitPercent.toFixed(2)}%)`);
+            if (learningEngine?.evaluateClosedTrade) {
+                learningEngine.evaluateClosedTrade(trade);
+                console.log(`🧠 İşlem öğrenildi: ${trade.symbol} (${profitPercent.toFixed(2)}%)`);
+            }
         } catch (error) {
             console.error('Öğrenme hatası:', error);
         }
