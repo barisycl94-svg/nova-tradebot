@@ -82,6 +82,25 @@ export const themes = {
             border: 'rgba(255,0,255,0.3)',
             gradient: 'linear-gradient(135deg, #0a0014 0%, #1a0028 50%, #2a0040 100%)'
         }
+    },
+    ocean: {
+        name: 'ocean',
+        label: '🌊 Ocean Deep',
+        colors: {
+            background: '#04101e',
+            backgroundSecondary: '#081a2f',
+            backgroundCard: '#0f2744',
+            text: '#e6f1f8',
+            textSecondary: '#a5b9d1',
+            textMuted: '#6a8db3',
+            primary: '#00c3ff',
+            primaryGlow: 'rgba(0,195,255,0.3)',
+            success: '#00ffa3',
+            danger: '#ff6b6b',
+            warning: '#ffd93d',
+            border: 'rgba(0,212,255,0.2)',
+            gradient: 'linear-gradient(135deg, #04101e 0%, #081a2f 100%)'
+        }
     }
 };
 
@@ -116,6 +135,9 @@ export const ThemeProvider = ({ children }) => {
         // Body background
         document.body.style.background = colors.background;
         document.body.style.color = colors.text;
+
+        // Set data-theme for CSS
+        root.setAttribute('data-theme', themeConfig.name);
     };
 
     const toggleTheme = () => {
@@ -214,7 +236,7 @@ export const ThemeToggle = () => {
             }}
             title="Tema Değiştir"
         >
-            {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : theme === 'midnight' ? '🌌' : '🌆'}
+            {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : theme === 'midnight' ? '🌌' : theme === 'ocean' ? '🌊' : '🌆'}
             <span style={{ fontSize: '12px' }}>Tema</span>
         </button>
     );

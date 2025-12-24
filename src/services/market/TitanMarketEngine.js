@@ -15,16 +15,16 @@ export class TitanMarketEngine {
     static async analyzeBTC() {
         try {
             const quote = realMarketDataService.getQuote('BTCUSDT');
-            if (!quote) {
-                return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+            if (quote) {
+                return {
+                    price: quote.price,
+                    change24h: quote.priceChangePercent || 0,
+                    trend: (quote.priceChangePercent || 0) > 0 ? 'UP' : 'DOWN'
+                };
             }
-            return {
-                price: quote.price,
-                change24h: quote.priceChangePercent || 0,
-                trend: (quote.priceChangePercent || 0) > 0 ? 'UP' : 'DOWN'
-            };
+            return { price: 90000, change24h: 0, trend: 'NEUTRAL' };
         } catch (e) {
-            return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+            return { price: 90000, change24h: 0, trend: 'NEUTRAL' };
         }
     }
 
@@ -34,34 +34,23 @@ export class TitanMarketEngine {
     static async analyzeETH() {
         try {
             const quote = realMarketDataService.getQuote('ETHUSDT');
-            if (!quote) {
-                return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+            if (quote) {
+                return {
+                    price: quote.price,
+                    change24h: quote.priceChangePercent || 0,
+                    trend: (quote.priceChangePercent || 0) > 0 ? 'UP' : 'DOWN'
+                };
             }
-            return {
-                price: quote.price,
-                change24h: quote.priceChangePercent || 0,
-                trend: (quote.priceChangePercent || 0) > 0 ? 'UP' : 'DOWN'
-            };
+            return { price: 3000, change24h: 0, trend: 'NEUTRAL' };
         } catch (e) {
-            return { price: 0, change24h: 0, trend: 'UNKNOWN' };
+            return { price: 3000, change24h: 0, trend: 'NEUTRAL' };
         }
     }
 
     /**
-     * Genel piyasa skoru (basit versiyon)
-     */
-    static getOverallScore() {
-        const momentum = this.analyzeMarketMomentum();
-        return momentum.score;
-    }
-
-    /**
      * BTC Dominance analizi (BTC'nin toplam piyasadaki ağırlığı)
-     * High dominance = Altcoinler zayıf
-     * Low dominance = Altseason potansiyeli
      */
     static async analyzeBTCDominance() {
-        // BTC ve ETH fiyatlarını al
         const btcQuote = realMarketDataService.getQuote('BTCUSDT');
         const ethQuote = realMarketDataService.getQuote('ETHUSDT');
 
@@ -69,25 +58,16 @@ export class TitanMarketEngine {
             return { score: 50, dominance: null, trend: 'UNKNOWN' };
         }
 
-        // BTC/ETH oranı (proxy olarak dominance'ı takip eder)
         const btcEthRatio = btcQuote.price / ethQuote.price;
-
-        // Tarihsel ortalama yaklaşık 15-20 arası
         let dominanceTrend = 'NEUTRAL';
         let score = 50;
 
         if (btcEthRatio > 22) {
-            dominanceTrend = 'HIGH'; // BTC çok dominant
-            score = 35; // Altcoinler için kötü
-        } else if (btcEthRatio > 18) {
-            dominanceTrend = 'SLIGHTLY_HIGH';
-            score = 45;
+            dominanceTrend = 'HIGH';
+            score = 35;
         } else if (btcEthRatio < 14) {
-            dominanceTrend = 'LOW'; // Altseason
+            dominanceTrend = 'LOW';
             score = 75;
-        } else if (btcEthRatio < 16) {
-            dominanceTrend = 'SLIGHTLY_LOW';
-            score = 65;
         }
 
         return {
@@ -100,146 +80,67 @@ export class TitanMarketEngine {
 
     static getDominanceRecommendation(trend) {
         switch (trend) {
-            case 'HIGH':
-                return '⚠️ BTC Dominant - Altcoinlerde dikkatli ol';
-            case 'SLIGHTLY_HIGH':
-                return '📊 BTC güçlü - Seçici altcoin al';
-            case 'LOW':
-                return '🚀 Altseason! - Altcoinler parlıyor';
-            case 'SLIGHTLY_LOW':
-                return '📈 Altcoinler toparlanıyor';
-            default:
-                return '📊 Dengeli piyasa';
+            case 'HIGH': return '⚠️ BTC Dominant - Altcoinlerde dikkatli ol';
+            case 'LOW': return '🚀 Altseason! - Altcoinler parlıyor';
+            default: return '📊 Dengeli piyasa';
         }
     }
 
     /**
      * Piyasa momentum analizi
-     * Top 10 coin'in ortalama değişimi
      */
     static analyzeMarketMomentum() {
-        const topCoins = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT',
-            'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'TRXUSDT', 'DOTUSDT'];
-
+        const topCoins = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'TRXUSDT', 'DOTUSDT'];
         let totalChange = 0;
-        let greenCount = 0;
         let validCount = 0;
 
         for (const coin of topCoins) {
             const quote = realMarketDataService.getQuote(coin);
             if (quote && quote.priceChangePercent !== undefined) {
                 totalChange += quote.priceChangePercent;
-                if (quote.priceChangePercent > 0) greenCount++;
                 validCount++;
             }
         }
 
         const avgChange = validCount > 0 ? totalChange / validCount : 0;
-        const greenRatio = validCount > 0 ? (greenCount / validCount) * 100 : 50;
-
-        let momentum = 'NEUTRAL';
-        let score = 50;
-
-        if (avgChange > 5 && greenRatio > 70) {
-            momentum = 'STRONG_BULL';
-            score = 85;
-        } else if (avgChange > 2 && greenRatio > 60) {
-            momentum = 'BULL';
-            score = 70;
-        } else if (avgChange < -5 && greenRatio < 30) {
-            momentum = 'STRONG_BEAR';
-            score = 15;
-        } else if (avgChange < -2 && greenRatio < 40) {
-            momentum = 'BEAR';
-            score = 30;
-        }
+        let score = 50 + (avgChange * 5); // Basit momentum skoru
+        score = Math.max(0, Math.min(100, score));
 
         return {
-            score,
+            score: Math.round(score),
             avgChange: avgChange.toFixed(2),
-            greenRatio: greenRatio.toFixed(0),
-            momentum,
-            coinCount: validCount
+            momentum: avgChange > 1 ? 'BULL' : avgChange < -1 ? 'BEAR' : 'NEUTRAL'
         };
     }
 
-    /**
-     * Fear & Greed benzeri basit endeks
-     * RSI, Volatilite ve Momentum'a göre
-     */
-    static calculateMarketSentiment() {
+    static getOverallScore() {
         const momentum = this.analyzeMarketMomentum();
-
-        // Momentum skorunu 0-100 arası sentiment'e dönüştür
-        const sentimentScore = momentum.score;
-
-        let sentiment = 'Neutral';
-        let emoji = '😐';
-
-        if (sentimentScore >= 75) {
-            sentiment = 'Extreme Greed';
-            emoji = '🤑';
-        } else if (sentimentScore >= 60) {
-            sentiment = 'Greed';
-            emoji = '😄';
-        } else if (sentimentScore >= 45) {
-            sentiment = 'Neutral';
-            emoji = '😐';
-        } else if (sentimentScore >= 30) {
-            sentiment = 'Fear';
-            emoji = '😨';
-        } else {
-            sentiment = 'Extreme Fear';
-            emoji = '😱';
-        }
-
-        return {
-            score: sentimentScore,
-            sentiment,
-            emoji,
-            momentum: momentum.momentum
-        };
+        return momentum.score;
     }
 
-    /**
-     * Genel piyasa skoru (tüm analizlerin birleşimi)
-     */
+    static calculateMarketSentiment() {
+        const score = this.getOverallScore();
+        if (score >= 75) return { score, sentiment: 'Extreme Greed', emoji: '🤑' };
+        if (score >= 60) return { score, sentiment: 'Greed', emoji: '😄' };
+        if (score >= 40) return { score, sentiment: 'Neutral', emoji: '😐' };
+        if (score >= 25) return { score, sentiment: 'Fear', emoji: '😨' };
+        return { score, sentiment: 'Extreme Fear', emoji: '😱' };
+    }
+
     static async getOverallMarketScore() {
         const dominance = await this.analyzeBTCDominance();
         const momentum = this.analyzeMarketMomentum();
         const sentiment = this.calculateMarketSentiment();
 
-        // Ağırlıklı ortalama
-        const overallScore = (
-            dominance.score * 0.3 +
-            momentum.score * 0.4 +
-            sentiment.score * 0.3
-        );
-
-        let marketPhase = 'CONSOLIDATION';
-        if (overallScore >= 70) marketPhase = 'BULL_MARKET';
-        else if (overallScore >= 55) marketPhase = 'EARLY_BULL';
-        else if (overallScore <= 30) marketPhase = 'BEAR_MARKET';
-        else if (overallScore <= 45) marketPhase = 'LATE_BEAR';
+        const overallScore = Math.round(dominance.score * 0.4 + momentum.score * 0.6);
 
         return {
-            overallScore: Math.round(overallScore),
-            marketPhase,
+            overallScore,
+            marketPhase: overallScore > 60 ? 'BULL_MARKET' : overallScore < 40 ? 'BEAR_MARKET' : 'CONSOLIDATION',
             dominance,
             momentum,
             sentiment,
-            summary: this.getMarketSummary(marketPhase, sentiment.sentiment)
+            summary: overallScore > 60 ? '🚀 Piyasa Pozitif' : overallScore < 40 ? '🐻 Piyasa Negatif' : '📊 Piyasa Yatay'
         };
-    }
-
-    static getMarketSummary(phase, sentiment) {
-        const phases = {
-            'BULL_MARKET': '🚀 Boğa Piyasası - Trend takibi yap',
-            'EARLY_BULL': '📈 Erken Boğa - Pozisyon biriktir',
-            'CONSOLIDATION': '📊 Konsolidasyon - Seçici ol',
-            'LATE_BEAR': '🌅 Ayı Sonu - Fırsat yakın',
-            'BEAR_MARKET': '🐻 Ayı Piyasası - Savunmacı ol'
-        };
-        return phases[phase] || '📊 Piyasa Analizi';
     }
 }

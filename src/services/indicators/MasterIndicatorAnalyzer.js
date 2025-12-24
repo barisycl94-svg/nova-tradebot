@@ -7,15 +7,22 @@
  * Bu sayede "Sürü Psikolojisi" (örneğin 100 MA'nın skoru ezmesi) engellenir.
  */
 
-import * as Lib1 from './IndicatorLibrary.js';
-import * as Lib2 from './IndicatorLibrary2.js';
-import * as Lib3 from './IndicatorLibrary3.js';
-import * as Lib4 from './IndicatorLibrary4.js';
-import * as Patterns from './PatternRecognition.js';
+// Değişkenleri dinamik yükle (xt/initialization hatasını önlemek için)
+let Lib1, Lib2, Lib3, Lib4, Patterns;
+
+const ensureLibsLoaded = async () => {
+    if (!Lib1) Lib1 = await import('./IndicatorLibrary.js');
+    if (!Lib2) Lib2 = await import('./IndicatorLibrary2.js');
+    if (!Lib3) Lib3 = await import('./IndicatorLibrary3.js');
+    if (!Lib4) Lib4 = await import('./IndicatorLibrary4.js');
+    if (!Patterns) Patterns = await import('./PatternRecognition.js');
+};
+
 
 export class MasterIndicatorAnalyzer {
 
-    static analyze(candles, learnedStats = {}) {
+    static async analyze(candles, learnedStats = {}) {
+        await ensureLibsLoaded();
         if (!candles || candles.length < 50) {
             return { score: 50, signals: [], confidence: 0, details: [] };
         }

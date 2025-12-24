@@ -67,7 +67,7 @@ export class OrionEngine {
         }
 
         // 100+ indikatör analizi - Artık başarı oranlarını dikkate alıyor
-        const masterResult = MasterIndicatorAnalyzer.analyze(candles, indicatorStats);
+        const masterResult = await MasterIndicatorAnalyzer.analyze(candles, indicatorStats);
 
         // Ana sonuç
         let signal = SignalAction.HOLD;
