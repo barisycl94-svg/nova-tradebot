@@ -1,34 +1,70 @@
-name: Nova Trading Bot - Auto Analyze
+name: Nova Trading Bot - Auto Trade
 
 on:
   schedule:
-    # Her 15 dakikada bir çalıştır (UTC)
+    # Her 15 dakikada bir çalıştır
     - cron: '*/15 * * * *'
-  workflow_dispatch: # Manuel tetikleme için
+  workflow_dispatch:
 
 env:
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+  GIST_ID: ${{ secrets.GIST_ID }}
 
 jobs:
-  analyze:
+  trade:
     runs-on: ubuntu-latest
     
     steps:
-      - name: 🔍 Crypto Analizi Yap
+      - name: 🤖 Nova Paper Trading Bot
         run: |
-          echo "🚀 Nova Trading Bot - Analiz Başlıyor..."
-          echo "⏰ Zaman: $(date)"
-          
-          # Binance'den top 10 coin verisi çek ve analiz et
           node << 'EOF'
           const https = require('https');
           
+          // ============================================
+          // CONFIGURATION
+          // ============================================
           const WATCHLIST = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 
                             'ADAUSDT', 'AVAXUSDT', 'DOTUSDT', 'MATICUSDT', 'LINKUSDT'];
           
+          const CONFIG = {
+            initialBalance: 1000,
+            maxPositionPercent: 20,  // Max %20 per trade
+            maxOpenPositions: 5,
+            buyThreshold: 70,        // Score >= 70 to buy
+            sellThreshold: 40,       // Score <= 40 to sell
+            takeProfitPercent: 15,   // +15% take profit
+            stopLossPercent: -8,     // -8% stop loss
+            trailingStopPercent: 5   // 5% trailing stop after +10%
+          };
+          
           const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
           const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+          const GIST_TOKEN = process.env.GIST_TOKEN;
+          const GIST_ID = process.env.GIST_ID;
+          
+          // ============================================
+          // HELPER FUNCTIONS
+          // ============================================
+          function httpsRequest(options, postData = null) {
+            return new Promise((resolve, reject) => {
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  try {
+                    resolve({ status: res.statusCode, data: JSON.parse(data) });
+                  } catch (e) {
+                    resolve({ status: res.statusCode, data: data });
+                  }
+                });
+              });
+              req.on('error', reject);
+              if (postData) req.write(postData);
+              req.end();
+            });
+          }
           
           async function fetchJson(url) {
             return new Promise((resolve, reject) => {
@@ -40,6 +76,92 @@ jobs:
             });
           }
           
+          // ============================================
+          // PORTFOLIO MANAGEMENT (via GitHub Gist)
+          // ============================================
+          async function loadPortfolio() {
+            if (!GIST_ID || !GIST_TOKEN) {
+              console.log('⚠️ Gist not configured, using default portfolio');
+              return getDefaultPortfolio();
+            }
+            
+            try {
+              const result = await httpsRequest({
+                hostname: 'api.github.com',
+                path: `/gists/${GIST_ID}`,
+                method: 'GET',
+                headers: {
+                  'Authorization': `token ${GIST_TOKEN}`,
+                  'User-Agent': 'Nova-Trading-Bot',
+                  'Accept': 'application/vnd.github.v3+json'
+                }
+              });
+              
+              if (result.status === 200 && result.data.files && result.data.files['portfolio.json']) {
+                const portfolio = JSON.parse(result.data.files['portfolio.json'].content);
+                console.log('📂 Portfolio loaded from Gist');
+                return portfolio;
+              }
+            } catch (e) {
+              console.error('Gist load error:', e.message);
+            }
+            
+            return getDefaultPortfolio();
+          }
+          
+          async function savePortfolio(portfolio) {
+            if (!GIST_ID || !GIST_TOKEN) {
+              console.log('⚠️ Gist not configured, cannot save');
+              return;
+            }
+            
+            portfolio.lastUpdated = new Date().toISOString();
+            
+            const data = JSON.stringify({
+              files: {
+                'portfolio.json': {
+                  content: JSON.stringify(portfolio, null, 2)
+                }
+              }
+            });
+            
+            try {
+              await httpsRequest({
+                hostname: 'api.github.com',
+                path: `/gists/${GIST_ID}`,
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `token ${GIST_TOKEN}`,
+                  'User-Agent': 'Nova-Trading-Bot',
+                  'Accept': 'application/vnd.github.v3+json',
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(data)
+                }
+              }, data);
+              console.log('💾 Portfolio saved to Gist');
+            } catch (e) {
+              console.error('Gist save error:', e.message);
+            }
+          }
+          
+          function getDefaultPortfolio() {
+            return {
+              cash: CONFIG.initialBalance,
+              positions: [],
+              trades: [],
+              stats: {
+                totalTrades: 0,
+                wins: 0,
+                losses: 0,
+                totalPnL: 0
+              },
+              lastUpdated: new Date().toISOString()
+            };
+          }
+          
+          // ============================================
+          // TECHNICAL ANALYSIS
+          // ============================================
           async function analyzeSymbol(symbol) {
             const [ticker, klines] = await Promise.all([
               fetchJson(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`),
@@ -48,11 +170,9 @@ jobs:
             
             const price = parseFloat(ticker.lastPrice);
             const change24h = parseFloat(ticker.priceChangePercent);
-            const volume = parseFloat(ticker.quoteVolume);
-            
             const closes = klines.map(k => parseFloat(k[4]));
             
-            // RSI hesapla
+            // RSI
             let gains = 0, losses = 0;
             for (let i = closes.length - 14; i < closes.length; i++) {
               const diff = closes[i] - closes[i - 1];
@@ -62,11 +182,11 @@ jobs:
             const rs = losses > 0 ? (gains / 14) / (losses / 14) : 100;
             const rsi = 100 - (100 / (1 + rs));
             
-            // SMA hesapla
+            // SMA
             const sma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
             const sma50 = closes.reduce((a, b) => a + b, 0) / closes.length;
             
-            // Skor hesapla
+            // Score calculation
             let score = 50;
             if (rsi < 30) score += 15;
             else if (rsi < 40) score += 8;
@@ -87,12 +207,178 @@ jobs:
             else if (score <= 25) signal = 'STRONG_SELL';
             else if (score <= 40) signal = 'SELL';
             
-            return { symbol: symbol.replace('USDT', ''), price, change24h, score, signal, rsi };
+            return { 
+              symbol: symbol.replace('USDT', ''), 
+              fullSymbol: symbol,
+              price, 
+              change24h, 
+              score, 
+              signal, 
+              rsi: rsi.toFixed(1) 
+            };
           }
           
+          // ============================================
+          // TRADING LOGIC
+          // ============================================
+          function executeBuy(portfolio, analysis) {
+            const { symbol, fullSymbol, price, score } = analysis;
+            
+            // Check if already have position
+            if (portfolio.positions.find(p => p.symbol === symbol)) {
+              console.log(`⏭️ ${symbol}: Already have position, skipping`);
+              return null;
+            }
+            
+            // Check max positions
+            if (portfolio.positions.length >= CONFIG.maxOpenPositions) {
+              console.log(`⏭️ ${symbol}: Max positions reached (${CONFIG.maxOpenPositions})`);
+              return null;
+            }
+            
+            // Calculate position size
+            const maxAmount = portfolio.cash * (CONFIG.maxPositionPercent / 100);
+            const amount = Math.min(maxAmount, portfolio.cash * 0.9); // Keep some cash reserve
+            
+            if (amount < 10) {
+              console.log(`⏭️ ${symbol}: Not enough cash ($${portfolio.cash.toFixed(2)})`);
+              return null;
+            }
+            
+            const quantity = amount / price;
+            const stopLoss = price * (1 + CONFIG.stopLossPercent / 100);
+            const takeProfit = price * (1 + CONFIG.takeProfitPercent / 100);
+            
+            // Execute buy
+            portfolio.cash -= amount;
+            const position = {
+              symbol,
+              fullSymbol,
+              entryPrice: price,
+              quantity,
+              amount,
+              stopLoss,
+              takeProfit,
+              highestPrice: price,
+              entryScore: score,
+              entryTime: new Date().toISOString()
+            };
+            portfolio.positions.push(position);
+            
+            console.log(`🟢 BUY ${symbol}: ${quantity.toFixed(6)} @ $${price.toLocaleString()} (Amount: $${amount.toFixed(2)})`);
+            
+            return {
+              type: 'BUY',
+              symbol,
+              price,
+              quantity,
+              amount,
+              stopLoss,
+              takeProfit,
+              score
+            };
+          }
+          
+          function executeSell(portfolio, position, currentPrice, reason) {
+            const pnl = (currentPrice - position.entryPrice) * position.quantity;
+            const pnlPercent = ((currentPrice / position.entryPrice) - 1) * 100;
+            
+            // Remove position
+            portfolio.positions = portfolio.positions.filter(p => p.symbol !== position.symbol);
+            
+            // Add cash back
+            const saleAmount = position.quantity * currentPrice;
+            portfolio.cash += saleAmount;
+            
+            // Update stats
+            portfolio.stats.totalTrades++;
+            portfolio.stats.totalPnL += pnl;
+            if (pnl > 0) portfolio.stats.wins++;
+            else portfolio.stats.losses++;
+            
+            // Record trade
+            portfolio.trades.push({
+              symbol: position.symbol,
+              type: 'SELL',
+              entryPrice: position.entryPrice,
+              exitPrice: currentPrice,
+              quantity: position.quantity,
+              pnl,
+              pnlPercent,
+              reason,
+              exitTime: new Date().toISOString()
+            });
+            
+            console.log(`🔴 SELL ${position.symbol}: @ $${currentPrice.toLocaleString()} | PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%) | Reason: ${reason}`);
+            
+            return {
+              type: 'SELL',
+              symbol: position.symbol,
+              entryPrice: position.entryPrice,
+              exitPrice: currentPrice,
+              quantity: position.quantity,
+              pnl,
+              pnlPercent,
+              reason
+            };
+          }
+          
+          function checkPositions(portfolio, analysisMap) {
+            const trades = [];
+            
+            for (const position of [...portfolio.positions]) {
+              const analysis = analysisMap[position.symbol];
+              if (!analysis) continue;
+              
+              const currentPrice = analysis.price;
+              const pnlPercent = ((currentPrice / position.entryPrice) - 1) * 100;
+              
+              // Update highest price for trailing stop
+              if (currentPrice > position.highestPrice) {
+                position.highestPrice = currentPrice;
+              }
+              
+              // Check stop loss
+              if (pnlPercent <= CONFIG.stopLossPercent) {
+                trades.push(executeSell(portfolio, position, currentPrice, 'STOP_LOSS'));
+                continue;
+              }
+              
+              // Check take profit
+              if (pnlPercent >= CONFIG.takeProfitPercent) {
+                trades.push(executeSell(portfolio, position, currentPrice, 'TAKE_PROFIT'));
+                continue;
+              }
+              
+              // Check trailing stop (if profit > 10%)
+              if (pnlPercent > 10) {
+                const dropFromHigh = ((currentPrice / position.highestPrice) - 1) * 100;
+                if (dropFromHigh <= -CONFIG.trailingStopPercent) {
+                  trades.push(executeSell(portfolio, position, currentPrice, 'TRAILING_STOP'));
+                  continue;
+                }
+              }
+              
+              // Check signal-based sell
+              if (analysis.score <= CONFIG.sellThreshold) {
+                trades.push(executeSell(portfolio, position, currentPrice, 'SIGNAL_SELL'));
+                continue;
+              }
+              
+              console.log(`📊 HOLD ${position.symbol}: $${currentPrice.toLocaleString()} | PnL: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%`);
+            }
+            
+            return trades;
+          }
+          
+          // ============================================
+          // TELEGRAM NOTIFICATIONS
+          // ============================================
           async function sendTelegram(message) {
-            if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-              console.log('Telegram yapılandırılmamış');
+            if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID || 
+                TELEGRAM_BOT_TOKEN === 'PLACEHOLDER_TOKEN' || 
+                TELEGRAM_CHAT_ID === 'PLACEHOLDER_ID') {
+              console.log('📵 Telegram not configured');
               return;
             }
             
@@ -102,8 +388,8 @@ jobs:
               parse_mode: 'HTML'
             });
             
-            return new Promise((resolve, reject) => {
-              const req = https.request({
+            try {
+              await httpsRequest({
                 hostname: 'api.telegram.org',
                 path: `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
                 method: 'POST',
@@ -111,83 +397,137 @@ jobs:
                   'Content-Type': 'application/json',
                   'Content-Length': Buffer.byteLength(data)
                 }
-              }, (res) => {
-                let responseData = '';
-                res.on('data', chunk => responseData += chunk);
-                res.on('end', () => resolve(responseData));
-              });
-              req.on('error', reject);
-              req.write(data);
-              req.end();
-            });
+              }, data);
+              console.log('📤 Telegram sent');
+            } catch (e) {
+              console.error('Telegram error:', e.message);
+            }
           }
           
+          function formatTradeMessage(trades, portfolio) {
+            if (trades.length === 0) return null;
+            
+            const buys = trades.filter(t => t.type === 'BUY');
+            const sells = trades.filter(t => t.type === 'SELL');
+            
+            let msg = `🤖 <b>NOVA PAPER TRADE</b>\n\n`;
+            
+            if (buys.length > 0) {
+              msg += `<b>🟢 ALIM:</b>\n`;
+              buys.forEach(t => {
+                msg += `• ${t.symbol}: $${t.price.toLocaleString()}\n`;
+                msg += `  Miktar: $${t.amount.toFixed(2)} | Skor: ${t.score}\n`;
+              });
+              msg += '\n';
+            }
+            
+            if (sells.length > 0) {
+              msg += `<b>🔴 SATIM:</b>\n`;
+              sells.forEach(t => {
+                const emoji = t.pnl >= 0 ? '💰' : '💔';
+                msg += `• ${t.symbol}: $${t.exitPrice.toLocaleString()}\n`;
+                msg += `  ${emoji} PnL: ${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)} (${t.pnlPercent.toFixed(1)}%)\n`;
+                msg += `  Sebep: ${t.reason}\n`;
+              });
+              msg += '\n';
+            }
+            
+            const totalValue = portfolio.cash + portfolio.positions.reduce((acc, p) => acc + (p.quantity * p.entryPrice), 0);
+            const totalPnL = totalValue - CONFIG.initialBalance;
+            const pnlPercent = (totalPnL / CONFIG.initialBalance) * 100;
+            
+            msg += `<b>📊 PORTFÖY:</b>\n`;
+            msg += `💵 Nakit: $${portfolio.cash.toFixed(2)}\n`;
+            msg += `📈 Açık Pozisyon: ${portfolio.positions.length}\n`;
+            msg += `💰 Toplam Değer: $${totalValue.toFixed(2)}\n`;
+            msg += `${totalPnL >= 0 ? '🟢' : '🔴'} PnL: ${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)} (${pnlPercent.toFixed(1)}%)\n`;
+            msg += `\n<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`;
+            
+            return msg;
+          }
+          
+          // ============================================
+          // MAIN EXECUTION
+          // ============================================
           async function main() {
-            console.log('🔍 Analiz başlıyor...');
-            const results = [];
-            const signals = [];
+            console.log('🚀 Nova Paper Trading Bot Starting...\n');
+            
+            // Load portfolio
+            const portfolio = await loadPortfolio();
+            console.log(`💰 Cash: $${portfolio.cash.toFixed(2)}`);
+            console.log(`📊 Open Positions: ${portfolio.positions.length}\n`);
+            
+            // Analyze all symbols
+            const analyses = [];
+            const analysisMap = {};
             
             for (const symbol of WATCHLIST) {
               try {
-                const result = await analyzeSymbol(symbol);
-                results.push(result);
-                console.log(`${result.symbol}: ${result.signal} (${result.score}/100) - $${result.price.toLocaleString()}`);
-                
-                if (result.signal === 'STRONG_BUY' || result.signal === 'STRONG_SELL') {
-                  signals.push(result);
-                }
+                const analysis = await analyzeSymbol(symbol);
+                analyses.push(analysis);
+                analysisMap[analysis.symbol] = analysis;
+                console.log(`${analysis.symbol}: Score ${analysis.score} | Signal: ${analysis.signal} | $${analysis.price.toLocaleString()}`);
               } catch (e) {
-                console.error(`${symbol} analiz hatası:`, e.message);
+                console.error(`Error analyzing ${symbol}:`, e.message);
               }
             }
             
-            // Güçlü sinyal varsa Telegram'a gönder
-            if (signals.length > 0) {
-              const emoji = s => s.signal === 'STRONG_BUY' ? '🟢' : '🔴';
-              const message = `
-🤖 <b>NOVA BOT - ${signals.length} GÜÇLÜ SİNYAL</b>
-
-${signals.map(s => `${emoji(s)} <b>${s.symbol}</b>
-   💰 Fiyat: $${s.price.toLocaleString()}
-   📊 Sinyal: ${s.signal}
-   🎯 Skor: ${s.score}/100
-   📈 24s: ${s.change24h >= 0 ? '+' : ''}${s.change24h.toFixed(2)}%`).join('\n\n')}
-
-<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>
-<i>🔄 GitHub Actions ile otomatik</i>`.trim();
-              
-              await sendTelegram(message);
-              console.log('✅ Telegram\'a gönderildi!');
+            console.log('\n--- TRADING DECISIONS ---\n');
+            
+            const trades = [];
+            
+            // Check existing positions first
+            const sellTrades = checkPositions(portfolio, analysisMap);
+            trades.push(...sellTrades);
+            
+            // Look for buy opportunities
+            const buySignals = analyses
+              .filter(a => a.score >= CONFIG.buyThreshold)
+              .sort((a, b) => b.score - a.score);
+            
+            for (const signal of buySignals) {
+              const trade = executeBuy(portfolio, signal);
+              if (trade) trades.push(trade);
+            }
+            
+            // Save portfolio
+            await savePortfolio(portfolio);
+            
+            // Send Telegram notification
+            if (trades.length > 0) {
+              const msg = formatTradeMessage(trades, portfolio);
+              if (msg) await sendTelegram(msg);
             } else {
-              console.log('ℹ️ Güçlü sinyal yok, Telegram gönderilmedi.');
+              console.log('ℹ️ No trades executed this cycle');
               
-              // Her 4 saatte bir özet gönder (saat 0, 4, 8, 12, 16, 20)
+              // Send hourly status update
               const hour = new Date().getUTCHours();
               if (hour % 4 === 0) {
-                const topBuy = results.filter(r => r.score > 50).sort((a, b) => b.score - a.score).slice(0, 3);
-                const topSell = results.filter(r => r.score < 50).sort((a, b) => a.score - b.score).slice(0, 2);
+                const totalValue = portfolio.cash + portfolio.positions.reduce((acc, p) => {
+                  const currentPrice = analysisMap[p.symbol]?.price || p.entryPrice;
+                  return acc + (p.quantity * currentPrice);
+                }, 0);
+                const totalPnL = totalValue - CONFIG.initialBalance;
                 
-                const summaryMessage = `
-📊 <b>NOVA 4 SAATLIK ÖZET</b>
-
-<b>🟢 En İyi Fırsatlar:</b>
-${topBuy.map(r => `• ${r.symbol}: ${r.score}/100 ($${r.price.toLocaleString()})`).join('\n')}
-
-<b>🔴 Dikkat Edilmesi Gerekenler:</b>
-${topSell.map(r => `• ${r.symbol}: ${r.score}/100`).join('\n')}
-
-<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`.trim();
+                const statusMsg = `📊 <b>NOVA 4 SAATLIK DURUM</b>\n\n` +
+                  `💰 Toplam Değer: $${totalValue.toFixed(2)}\n` +
+                  `${totalPnL >= 0 ? '🟢' : '🔴'} PnL: ${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}\n` +
+                  `📈 Açık Pozisyon: ${portfolio.positions.length}\n` +
+                  `✅ Kazanan: ${portfolio.stats.wins} | ❌ Kaybeden: ${portfolio.stats.losses}\n\n` +
+                  `⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}`;
                 
-                await sendTelegram(summaryMessage);
-                console.log('✅ Özet Telegram\'a gönderildi!');
+                await sendTelegram(statusMsg);
               }
             }
             
-            console.log(`\n📋 Özet: ${results.length} coin analiz edildi, ${signals.length} güçlü sinyal`);
+            // Summary
+            console.log('\n--- SUMMARY ---');
+            console.log(`Trades: ${trades.length}`);
+            console.log(`Cash: $${portfolio.cash.toFixed(2)}`);
+            console.log(`Positions: ${portfolio.positions.length}`);
+            console.log(`Total Trades: ${portfolio.stats.totalTrades}`);
+            console.log(`Win Rate: ${portfolio.stats.totalTrades > 0 ? ((portfolio.stats.wins / portfolio.stats.totalTrades) * 100).toFixed(1) : 0}%`);
           }
           
           main().catch(console.error);
           EOF
-
-      - name: ✅ Tamamlandı
-        run: echo "Nova Trading Bot analizi tamamlandı!"
