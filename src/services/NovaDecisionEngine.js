@@ -240,7 +240,7 @@ export class NovaDecisionEngine {
 
         // --- PUANLAMA VE AĞIRLIKLANDIRMA ---
         // 🧠 Dinamik ağırlıkları öğrenme motorundan veya skorlama stratejisinden al
-        const dynamicWeights = learningEngine.getModuleWeights();
+        const dynamicWeights = learningEngine?.getModuleWeights?.() || { Orion: 0.32, Atlas: 0.18, Phoenix: 0.15, Aether: 0.15 };
 
         // 📊 Core vs Pulse stratejik ağırlıkları al (Argus 12_argus.md)
         const strategyWeights = tradingConfig.getScoringWeights();
