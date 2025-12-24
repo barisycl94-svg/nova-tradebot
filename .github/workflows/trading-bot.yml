@@ -1,0 +1,193 @@
+name: Nova Trading Bot - Auto Analyze
+
+on:
+  schedule:
+    # Her 15 dakikada bir çalıştır (UTC)
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Manuel tetikleme için
+
+env:
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🔍 Crypto Analizi Yap
+        run: |
+          echo "🚀 Nova Trading Bot - Analiz Başlıyor..."
+          echo "⏰ Zaman: $(date)"
+          
+          # Binance'den top 10 coin verisi çek ve analiz et
+          node << 'EOF'
+          const https = require('https');
+          
+          const WATCHLIST = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 
+                            'ADAUSDT', 'AVAXUSDT', 'DOTUSDT', 'MATICUSDT', 'LINKUSDT'];
+          
+          const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+          const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+          
+          async function fetchJson(url) {
+            return new Promise((resolve, reject) => {
+              https.get(url, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => resolve(JSON.parse(data)));
+              }).on('error', reject);
+            });
+          }
+          
+          async function analyzeSymbol(symbol) {
+            const [ticker, klines] = await Promise.all([
+              fetchJson(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`),
+              fetchJson(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=4h&limit=50`)
+            ]);
+            
+            const price = parseFloat(ticker.lastPrice);
+            const change24h = parseFloat(ticker.priceChangePercent);
+            const volume = parseFloat(ticker.quoteVolume);
+            
+            const closes = klines.map(k => parseFloat(k[4]));
+            
+            // RSI hesapla
+            let gains = 0, losses = 0;
+            for (let i = closes.length - 14; i < closes.length; i++) {
+              const diff = closes[i] - closes[i - 1];
+              if (diff > 0) gains += diff;
+              else losses -= diff;
+            }
+            const rs = losses > 0 ? (gains / 14) / (losses / 14) : 100;
+            const rsi = 100 - (100 / (1 + rs));
+            
+            // SMA hesapla
+            const sma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+            const sma50 = closes.reduce((a, b) => a + b, 0) / closes.length;
+            
+            // Skor hesapla
+            let score = 50;
+            if (rsi < 30) score += 15;
+            else if (rsi < 40) score += 8;
+            else if (rsi > 70) score -= 15;
+            else if (rsi > 60) score -= 8;
+            
+            if (price > sma20 && sma20 > sma50) score += 12;
+            else if (price < sma20 && sma20 < sma50) score -= 12;
+            
+            if (change24h > 5) score += 8;
+            else if (change24h > 2) score += 4;
+            else if (change24h < -5) score -= 8;
+            else if (change24h < -2) score -= 4;
+            
+            let signal = 'HOLD';
+            if (score >= 75) signal = 'STRONG_BUY';
+            else if (score >= 60) signal = 'BUY';
+            else if (score <= 25) signal = 'STRONG_SELL';
+            else if (score <= 40) signal = 'SELL';
+            
+            return { symbol: symbol.replace('USDT', ''), price, change24h, score, signal, rsi };
+          }
+          
+          async function sendTelegram(message) {
+            if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+              console.log('Telegram yapılandırılmamış');
+              return;
+            }
+            
+            const data = JSON.stringify({
+              chat_id: TELEGRAM_CHAT_ID,
+              text: message,
+              parse_mode: 'HTML'
+            });
+            
+            return new Promise((resolve, reject) => {
+              const req = https.request({
+                hostname: 'api.telegram.org',
+                path: `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(data)
+                }
+              }, (res) => {
+                let responseData = '';
+                res.on('data', chunk => responseData += chunk);
+                res.on('end', () => resolve(responseData));
+              });
+              req.on('error', reject);
+              req.write(data);
+              req.end();
+            });
+          }
+          
+          async function main() {
+            console.log('🔍 Analiz başlıyor...');
+            const results = [];
+            const signals = [];
+            
+            for (const symbol of WATCHLIST) {
+              try {
+                const result = await analyzeSymbol(symbol);
+                results.push(result);
+                console.log(`${result.symbol}: ${result.signal} (${result.score}/100) - $${result.price.toLocaleString()}`);
+                
+                if (result.signal === 'STRONG_BUY' || result.signal === 'STRONG_SELL') {
+                  signals.push(result);
+                }
+              } catch (e) {
+                console.error(`${symbol} analiz hatası:`, e.message);
+              }
+            }
+            
+            // Güçlü sinyal varsa Telegram'a gönder
+            if (signals.length > 0) {
+              const emoji = s => s.signal === 'STRONG_BUY' ? '🟢' : '🔴';
+              const message = `
+🤖 <b>NOVA BOT - ${signals.length} GÜÇLÜ SİNYAL</b>
+
+${signals.map(s => `${emoji(s)} <b>${s.symbol}</b>
+   💰 Fiyat: $${s.price.toLocaleString()}
+   📊 Sinyal: ${s.signal}
+   🎯 Skor: ${s.score}/100
+   📈 24s: ${s.change24h >= 0 ? '+' : ''}${s.change24h.toFixed(2)}%`).join('\n\n')}
+
+<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>
+<i>🔄 GitHub Actions ile otomatik</i>`.trim();
+              
+              await sendTelegram(message);
+              console.log('✅ Telegram\'a gönderildi!');
+            } else {
+              console.log('ℹ️ Güçlü sinyal yok, Telegram gönderilmedi.');
+              
+              // Her 4 saatte bir özet gönder (saat 0, 4, 8, 12, 16, 20)
+              const hour = new Date().getUTCHours();
+              if (hour % 4 === 0) {
+                const topBuy = results.filter(r => r.score > 50).sort((a, b) => b.score - a.score).slice(0, 3);
+                const topSell = results.filter(r => r.score < 50).sort((a, b) => a.score - b.score).slice(0, 2);
+                
+                const summaryMessage = `
+📊 <b>NOVA 4 SAATLIK ÖZET</b>
+
+<b>🟢 En İyi Fırsatlar:</b>
+${topBuy.map(r => `• ${r.symbol}: ${r.score}/100 ($${r.price.toLocaleString()})`).join('\n')}
+
+<b>🔴 Dikkat Edilmesi Gerekenler:</b>
+${topSell.map(r => `• ${r.symbol}: ${r.score}/100`).join('\n')}
+
+<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`.trim();
+                
+                await sendTelegram(summaryMessage);
+                console.log('✅ Özet Telegram\'a gönderildi!');
+              }
+            }
+            
+            console.log(`\n📋 Özet: ${results.length} coin analiz edildi, ${signals.length} güçlü sinyal`);
+          }
+          
+          main().catch(console.error);
+          EOF
+
+      - name: ✅ Tamamlandı
+        run: echo "Nova Trading Bot analizi tamamlandı!"

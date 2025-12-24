@@ -1,0 +1,7 @@
+/* App.css - Nova TradeBot */
+/* Uygulama konteyner stili */
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}

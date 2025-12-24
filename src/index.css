@@ -1,0 +1,404 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Color Palette - Nova TradeBot Premium v3 (Ultra) */
+  --bg-dark: #03030b;
+  --bg-deep: #050511;
+  --bg-panel: rgba(18, 20, 40, 0.6);
+  /* Slightly lighter for better contrast */
+  --bg-panel-hover: rgba(25, 28, 55, 0.7);
+
+  /* Neons - More Vivid */
+  --primary: #00f3ff;
+  --primary-glow: rgba(0, 243, 255, 0.5);
+  --primary-dim: rgba(0, 243, 255, 0.15);
+
+  --secondary: #7d2ae8;
+  /* Richer Purple */
+  --secondary-glow: rgba(125, 42, 232, 0.5);
+
+  --accent: #ff0055;
+  --accent-glow: rgba(255, 0, 85, 0.5);
+
+  --success: #00ff9d;
+  --success-glow: rgba(0, 255, 157, 0.4);
+
+  --warning: #ffd700;
+  --warning-glow: rgba(255, 215, 0, 0.4);
+
+  /* Typography */
+  --text-main: #ffffff;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-glow: rgba(0, 243, 255, 0.3);
+
+  /* Gradients */
+  --gradient-main: linear-gradient(135deg, var(--bg-dark) 0%, #0a0b1e 100%);
+  --gradient-premium: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  --gradient-success: linear-gradient(135deg, var(--success) 0%, #00cec9 100%);
+  --gradient-glass: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.0) 100%);
+
+  /* Spacing & Layout */
+  --radius-sm: 10px;
+  --radius-md: 20px;
+  --radius-lg: 30px;
+  --header-height: 80px;
+  --sidebar-width: 260px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, system-ui, sans-serif;
+  background-color: var(--bg-dark);
+  background-image:
+    radial-gradient(circle at 20% 40%, rgba(125, 42, 232, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 60%, rgba(0, 243, 255, 0.15) 0%, transparent 50%),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+  color: var(--text-main);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+/* Utilities & Glass Panels */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  /* Top highlight */
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.glass-panel:hover {
+  border-color: var(--border-glow);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 25px var(--primary-dim);
+  transform: translateY(-2px);
+}
+
+.text-gradient {
+  background: var(--gradient-premium);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+  font-weight: 800;
+}
+
+/* --- NEW BUTTON SYSTEM --- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 2rem;
+  border-radius: var(--radius-sm);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  font-size: 1rem;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+}
+
+/* 1. Neon Button (Hollow style with glow) */
+.btn-neon {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  box-shadow: 0 0 10px var(--primary-dim), inset 0 0 5px var(--primary-dim);
+}
+
+.btn-neon:hover {
+  background: var(--primary);
+  color: #000;
+  box-shadow: 0 0 25px var(--primary-glow), 0 0 10px var(--primary-glow);
+  transform: translateY(-2px);
+}
+
+/* 2. Premium Gradient Button (Primary CTA) */
+.btn-premium {
+  background: var(--gradient-premium);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 15px rgba(112, 0, 255, 0.4);
+}
+
+.btn-premium:hover {
+  background: linear-gradient(135deg, #00f3ff 0%, #aa49ff 100%);
+  /* Brighter transition */
+  box-shadow: 0 6px 25px rgba(112, 0, 255, 0.6), 0 0 15px var(--primary-glow);
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* 3. Glass Button (Subtle, secondary actions) */
+.btn-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
+.btn-glass:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-main);
+  color: var(--text-main);
+  transform: translateY(-1px);
+}
+
+/* 4. Success/Active State Button */
+.btn-success-glow {
+  background: var(--gradient-success);
+  /* Use the new gradient */
+  color: #000;
+  box-shadow: 0 0 20px var(--success-glow);
+  border: none;
+  font-weight: 800;
+  animation: pulse-glow-green 2s infinite;
+}
+
+.btn-success-glow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 40px var(--success-glow);
+}
+
+/* 5. Accent/Danger Button */
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent) 0%, #ff4b1f 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 15px rgba(255, 0, 85, 0.4);
+}
+
+.btn-accent:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(255, 0, 85, 0.6);
+}
+
+.btn-outline-accent {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.btn-outline-accent:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+/* Small variants */
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+/* --- Container --- */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* --- Animations --- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 10px var(--primary-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 25px var(--primary-glow), 0 0 15px var(--secondary-glow);
+  }
+
+  100% {
+    box-shadow: 0 0 10px var(--primary-glow);
+  }
+}
+
+@keyframes pulse-glow-green {
+  0% {
+    box-shadow: 0 0 10px var(--success-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 30px var(--success-glow);
+  }
+
+  100% {
+    box-shadow: 0 0 10px var(--success-glow);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020205;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary);
+}
+
+/* --- Navigation Bar --- */
+.nav-glass-bar {
+  position: fixed;
+  bottom: 25px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 500px;
+  height: 75px;
+  background: rgba(10, 12, 30, 0.7);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 243, 255, 0.05);
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  z-index: 1000;
+  padding: 0 5px;
+  transition: all 0.3s ease;
+}
+
+.nav-glass-bar:hover {
+  background: rgba(15, 17, 40, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 243, 255, 0.1);
+}
+
+.nav-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 8px;
+  width: 70px;
+  height: 100%;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-tab-btn .icon-wrapper {
+  font-size: 1.5rem;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  opacity: 0.7;
+}
+
+.nav-tab-btn.active {
+  color: var(--primary);
+}
+
+.nav-tab-btn.active .icon-wrapper {
+  transform: translateY(-5px) scale(1.15);
+  filter: drop-shadow(0 0 12px var(--primary-glow));
+  opacity: 1;
+}
+
+.nav-tab-btn .label {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 500;
+  font-size: 0.7rem;
+  opacity: 0.6;
+  transition: all 0.3s;
+}
+
+.nav-tab-btn.active .label {
+  opacity: 1;
+  font-weight: 600;
+  color: #fff;
+}
+
+.active-indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 3px;
+  background: var(--primary);
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+/* 6. Warning Button */
+.btn-warning {
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  box-shadow: 0 0 10px var(--warning-glow);
+}
+
+.btn-warning:hover {
+  background: var(--warning);
+  color: #000;
+  box-shadow: 0 0 25px var(--warning-glow);
+  transform: translateY(-2px);
+}
