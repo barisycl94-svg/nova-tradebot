@@ -11,8 +11,26 @@ import { NovaDecisionEngine } from '../services/NovaDecisionEngine.js';
 import { ChironRiskManager, AuditStatus } from '../services/risk/ChironRiskManager.js';
 import { Trade, TradeSource, SignalAction, AssetType } from '../models/Models.js';
 
-// 🧠 Öğrenme Sistemi
-import { learningEngine } from '../services/learning/LearningEngine.js';
+// 🧠 Öğrenme Sistemi - Lazy import to avoid circular dependency
+let learningEngine = null;
+let backtestRunner = null;
+
+const getLearningEngine = async () => {
+    if (!learningEngine) {
+        const module = await import('../services/learning/LearningEngine.js');
+        learningEngine = module.learningEngine;
+    }
+    return learningEngine;
+};
+
+const getBacktestRunner = async () => {
+    if (!backtestRunner) {
+        const module = await import('../services/learning/BacktestRunner.js');
+        backtestRunner = module.backtestRunner;
+    }
+    return backtestRunner;
+};
+
 // Browser-safe UUID generation
 const generateUUID = () => {
     if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -25,7 +43,7 @@ const generateUUID = () => {
         return v.toString(16);
     });
 };
-import { backtestRunner } from '../services/learning/BacktestRunner.js';
+
 import { tradingConfig } from '../config/TradingConfig.js';
 import Indicators2 from '../services/indicators/IndicatorLibrary2.js';
 import { telegramService } from '../services/TelegramService.js';
@@ -37,6 +55,7 @@ import { CronosEngine } from '../services/timing/CronosEngine.js';
 
 // 🔥 Phoenix Channel Analizi (Argus Phoenix)
 import { PhoenixChannelAnalysis } from '../services/phoenix/PhoenixChannelAnalysis.js';
+
 
 const STORAGE_KEY = 'novaTradeBot_state_v2_1000';
 
@@ -100,9 +119,10 @@ class TradingViewModel {
         }, 3000);
 
         // 🧠 Arka plan backtest servisini başlat (5 saniye sonra)
-        setTimeout(() => {
+        setTimeout(async () => {
             console.log('🧠 Öğrenme sistemi başlatılıyor...');
-            backtestRunner.start();
+            const runner = await getBacktestRunner();
+            if (runner) runner.start();
         }, 5000);
     }
 
