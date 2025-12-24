@@ -1,4 +1,18 @@
 {
+    "rewrites": [
+        {
+            "source": "/binance1/:path*",
+            "destination": "https://api.binance.com/api/v3/:path*"
+        },
+        {
+            "source": "/binance2/:path*",
+            "destination": "https://api1.binance.com/api/v3/:path*"
+        },
+        {
+            "source": "/binance3/:path*",
+            "destination": "https://api2.binance.com/api/v3/:path*"
+        }
+    ],
     "crons": [
         {
             "path": "/api/cron/analyze",
