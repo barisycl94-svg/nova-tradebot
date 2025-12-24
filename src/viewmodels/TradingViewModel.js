@@ -118,11 +118,12 @@ class TradingViewModel {
             }
         }, 3000);
 
-        // 🧠 Arka plan backtest servisini başlat (5 saniye sonra)
+        // 🧠 Arka plan backtest servisini şimdilik devre dışı (circular dependency fix pending)
+        // TODO: LearningEngine'i NovaDecisionEngine'den ayırdıktan sonra tekrar aktif et
         setTimeout(async () => {
-            console.log('🧠 Öğrenme sistemi başlatılıyor...');
-            const runner = await getBacktestRunner();
-            if (runner) runner.start();
+            console.log('🧠 Öğrenme sistemi: Backtest geçici olarak devre dışı.');
+            // const runner = await getBacktestRunner();
+            // if (runner) runner.start();
         }, 5000);
     }
 

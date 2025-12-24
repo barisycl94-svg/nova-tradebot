@@ -18,8 +18,19 @@ import { AtlasEngine } from './engines/AtlasEngine.js';
 import { AetherEngine } from './engines/AetherEngine.js';
 import { PhoenixScenarioEngine } from './phoenix/PhoenixScenarioEngine.js';
 
-// 🧠 Öğrenme Motorunu İmport Et
-import { learningEngine } from './learning/LearningEngine.js';
+// 🧠 Öğrenme Motorunu Lazy Import Et (Circular Dependency önlemi)
+let learningEngine = null;
+const getLearningEngine = async () => {
+    if (!learningEngine) {
+        try {
+            const module = await import('./learning/LearningEngine.js');
+            learningEngine = module.learningEngine;
+        } catch (e) {
+            console.warn('LearningEngine yüklenemedi:', e.message);
+        }
+    }
+    return learningEngine;
+};
 
 // 🎯 Trading Konfigürasyonu
 import { tradingConfig } from '../config/TradingConfig.js';
