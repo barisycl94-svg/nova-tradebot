@@ -432,15 +432,20 @@ class TradingViewModel {
     async scanMarket() {
         if (!this.isAutoPilotActive) return;
 
-        // Eğer önceki tarama hala sürüyorsa (ve çok uzun sürmediyse) yeni tarama başlatma
-        // Ancak 'çakışma' durumunu çözmek için isScanning kontrolünü esnetiyoruz
+        // 🛡️ Watchdog: Tarama 5 dakikadan uzun sürerse kilidi zorla aç
         if (this.isScanning) {
-            // Basit koruma
-            console.warn('⚠️ Tarama zaten devam ediyor, atlanıyor.');
-            return;
+            const now = Date.now();
+            if (this.lastScanStartTime && (now - this.lastScanStartTime > 300000)) {
+                console.warn('⚡ Tarama asılı kalmış görünüyor, kilit resetlendi.');
+                this.isScanning = false;
+            } else {
+                console.warn('⚠️ Tarama zaten devam ediyor, atlanıyor.');
+                return;
+            }
         }
 
         this.isScanning = true;
+        this.lastScanStartTime = Date.now();
         // console.log('🔍 Piyasa taraması başlatıldı...');
 
         // Önce açık pozisyonları kontrol et (SL/TP)
@@ -530,8 +535,8 @@ class TradingViewModel {
                     }
                 }));
 
-                // CHUNK ARASI UZUN BEKLEME (Bot tespiti koruması)
-                await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
+                // CHUNK ARASI BEKLEME (Bot tespiti ve UI akıcılığı için)
+                await new Promise(r => setTimeout(r, 400));
 
                 // CHUNK SONU: Veri aktığı için arayüzü her chunkta güncelle
                 this._notify();
