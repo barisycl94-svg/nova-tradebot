@@ -319,8 +319,8 @@ export class NovaDecisionEngine {
             let penaltyCount = 0;
 
             for (const signal of activeSignals) {
-                // LearningEngine'den bu indikatörün karnesini iste
-                const stats = learningEngine.indicatorStats[signal.name];
+                // LearningEngine'den bu indikatörün karnesini iste (null-safe)
+                const stats = learningEngine?.indicatorStats?.[signal.name];
 
                 // En az 10 işlem görmüş olması lazım
                 if (stats && stats.totalSignals >= 10) {

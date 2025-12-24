@@ -26,7 +26,8 @@ export class OrionEngine {
         }
 
         // 🧠 Öğrenilmiş istatistikleri al (Fine-grained Learning)
-        const indicatorStats = learningEngine.indicatorStats;
+        // Null-safe erişim - learningEngine henüz yüklenmemiş olabilir
+        const indicatorStats = learningEngine?.indicatorStats || {};
 
         // Initialize traces and a temporary score for pre-MasterIndicatorAnalyzer calculations
         const traces = [];
