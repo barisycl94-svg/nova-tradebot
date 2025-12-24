@@ -11,8 +11,17 @@
 
 import { learningEngine } from './LearningEngine.js';
 import { realMarketDataService } from '../RealMarketDataProvider.js';
-import { NovaDecisionEngine } from '../NovaDecisionEngine.js';
 import { AssetType } from '../../models/Models.js';
+
+// Lazy import to avoid circular dependency
+let NovaDecisionEngine = null;
+const getDecisionEngine = async () => {
+    if (!NovaDecisionEngine) {
+        const module = await import('../NovaDecisionEngine.js');
+        NovaDecisionEngine = module.NovaDecisionEngine;
+    }
+    return NovaDecisionEngine;
+};
 
 class BacktestRunner {
     constructor() {
@@ -86,10 +95,11 @@ class BacktestRunner {
             }
 
             // Backtest yap
+            const DecisionEngine = await getDecisionEngine();
             const results = await learningEngine.startBacktest(
                 (symbol, period, limit) => realMarketDataService.getCandles(symbol, period, limit),
                 symbols,
-                (symbol, candles) => NovaDecisionEngine.makeDecision(symbol, { '1d': candles, '4h': candles, '1h': candles }, AssetType.CRYPTO, true)
+                (symbol, candles) => DecisionEngine.makeDecision(symbol, { '1d': candles, '4h': candles, '1h': candles }, AssetType.CRYPTO, true)
             );
 
             // Zamanı kaydet

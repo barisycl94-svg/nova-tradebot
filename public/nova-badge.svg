@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64">
+  <defs>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00f3ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0066ff;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="124" height="60" rx="10" fill="rgba(0,20,40,0.9)" stroke="url(#grad2)" stroke-width="2"/>
+  <text x="64" y="42" text-anchor="middle" font-family="Arial Black" font-size="28" fill="url(#grad2)">NOVA</text>
+</svg>
